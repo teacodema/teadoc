@@ -1,13 +1,10 @@
 import requests
+from setup.actions import *
 
 def init_bot_commands(params):
 
 	bot = params['bot']
-	# client2 = params['client2']
 	discord = params['discord']
-	# slash = params['slash']
-	get = params['get']
-	tasks = params['tasks']
 	
 	@bot.event
 	async def on_ready():
@@ -20,12 +17,9 @@ def init_bot_commands(params):
 			print('----- on_ready(evt) -----')
 			print(ex)
 
-	def mdn_handle(config, key, term):
+	def mdn_handle(config, key, term, embed):
 		r = requests.get(url = config[key]['URL'], params = config[key]['PARAMS'])
 		data = r.json()
-		embed = discord.Embed(color=0x1da1f2)
-		embed.set_footer(text=f"🌐 Visit teacode.ma")
-		embed.add_field(name=f"📋│Search results for:", value=term, inline=False)
 		if 'documents' in data and len(data['documents']):
 			for item in data['documents']:
 				url = f"https://developer.mozilla.org/{item['mdn_url']}"
@@ -35,43 +29,42 @@ def init_bot_commands(params):
 			embed.add_field(name=f"Results", value="Found 0 matches", inline=False)
 		return embed	
 
-	def sof_handle(config, key, term):
+	def sof_handle(config, key, term, embed):
 		r = requests.get(url = config[key]['URL'], params = config[key]['PARAMS'])
 		data = r.json()
-		embed = discord.Embed(color=0x1da1f2)
-		embed.set_footer(text=f"🌐 Visit teacode.ma")
-		embed.add_field(name=f"📋│Search results for:", value=term, inline=False)
 		if 'items' in data and len(data['items']):
 			for item in data['items']:
-				url = f"{item['link']}"
-				value = f"[See More ...]({url})"
+				value = f"[See More ...]({item['link']})"
 				embed.add_field(name=f"{item['title']}", value=value, inline=False)
 		else:
 			embed.add_field(name=f"Results", value="Found 0 matches", inline=False)
 		return embed
 
-	def msdn_handle(config, key, term):
+	def msdn_handle(config, key, term, embed):
 		r = requests.get(url = config[key]['URL'], params = config[key]['PARAMS'])
 		data = r.json()
-		embed = discord.Embed(color=0x1da1f2)
-		embed.set_footer(text=f"🌐 Visit teacode.ma")
-		embed.add_field(name=f"📋│Search results for:", value=term, inline=False)
 		if 'results' in data and len(data['results']):
 			for item in data['results']:
-				url = f"{item['url']}" 
 				description = item['description'] if ('description' in item) else ""
-				value = f"{description[0:200]}\n[See More ...]({url})"
+				value = f"{description[0:200]}\n[See More ...]({item['url']})"
 				embed.add_field(name=f"{item['title']}", value=value, inline=False)
 		else:
 			embed.add_field(name=f"Results", value="Found 0 matches", inline=False)
 		return embed
 
 		
-	@bot.command(name='docs', help='Get useful docs links')
+	@bot.command(name='docs', description='Get useful docs links')
 	async def docs(ctx, *term):
+		if not is_founders(ctx):
+			await ctx.send('❌ Missing Permissions - Still on Testing phase')
+			return
+			
 		if term:
 			l = list(term)
 			key = l.pop(0)
+			if len(l) == 0:
+				await ctx.send('❌ Provide a search term')
+				return
 			term = ' '.join(tuple(l))
 			config = {
 				'mdn': {
@@ -90,7 +83,20 @@ def init_bot_commands(params):
 					'HANDLE': msdn_handle
 				}
 			}
-			embed = config[key]['HANDLE'](config, key, term)
+			embed = discord.Embed(color=0x1da1f2)
+			embed.set_footer(text="🌐 Visit teacode.ma")
+			embed.add_field(name=f"📋│Search results for : {term}", value=f'Source : {key}', inline=False)
+			embed = config[key]['HANDLE'](config, key, term, embed)
 			await ctx.send(embed=embed)
 			return
-		await ctx.send('Provide a valid key and search term')
+		await ctx.send('❌ Provide a valid key and search term (\__docs mdn json, \__docs stackoverflow html)')
+
+	@bot.command(name='help', description='This is a help command')
+	async def help(ctx, *term):
+		embed = discord.Embed(color=0x1da1f2)
+		embed.set_footer(text="🌐 Visit teacode.ma")
+		embed.add_field(name="Available bot commands", value='<@944662897429192775>', inline=False)
+		for cmd in bot.commands:
+			if cmd.name != 'help':
+				embed.add_field(name=f'__{cmd.name}', value=cmd.description, inline=False)
+		await ctx.send(embed=embed)
